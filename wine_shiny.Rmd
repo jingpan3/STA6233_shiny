@@ -1,0 +1,122 @@
+---
+title: "Untitled"
+author: "Jing"
+date: "5/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+wine_data = read.csv("wine_final.csv",stringsAsFactors = F)
+head(wine_data)
+wine_data$X = NULL
+save(wine_data, file = "wine_data.RData")
+```
+
+
+
+```{r}
+library(shiny)
+library(leaflet)
+library(leaflet.extras)
+library(rsconnect)
+library(ggplot2)
+library(tidyverse)
+library(scales)
+library(plotly)
+load(url("https://raw.githubusercontent.com/jingpan3/STA6233_shiny/master/data/wine_data.RData"))
+#load("data/wine_data.RData")
+```
+
+```{r}
+r_colors <- rgb(t(col2rgb(colors()) / 255))
+names(r_colors) <- colors()
+
+ui <- fluidPage(
+  titlePanel("Winery Location"),
+  leafletOutput("wine_map")
+)
+
+server <- function(input, output, session) {
+
+  output$wine_map <- renderLeaflet({
+    leaflet(data = wine_data) %>% addTiles() %>%
+  addCircles(
+  ~ lon,
+  ~ lat,
+  )
+  })
+}
+
+shinyApp(ui, server)
+```
+
+```{r}
+ui <- fluidPage(
+  titlePanel("Wine Heat map"),
+  p(),
+  sidebarLayout(
+        sidebarPanel(
+          
+          selectInput(inputId = "intensity", 
+                  label = "Intensity:",
+                  choices = c("price","points"))
+        ),
+        mainPanel(
+           leafletOutput("wine_heat_map") 
+        )
+))
+server <- function(input, output, session) {
+
+  output$wine_heat_map <- renderLeaflet({
+    leaflet(data = wine_data) %>% addTiles() %>% addHeatmap(lng = ~lon, lat = ~lat, intensity = ~input$intensity,
+             blur = 20, max = 0.05, radius = 15)
+  })
+  
+}
+
+shinyApp(ui, server)
+```
+
+```{r}
+ui <- fluidPage(
+  titlePanel("Wine Manufacturer"),
+
+  sidebarLayout(
+        sidebarPanel(
+          
+          selectInput(inputId = "manu", 
+                  label = "Manufacture:",
+                  choices = c("Imported","Domestic"),
+                  selected = "Imported")
+        ),
+        mainPanel(
+           plotOutput(outputId = "wine_import")
+        )
+))
+server <- function(input, output, session) {
+  wine_import_data = reactive({
+      if(input$manu == "Imported"){
+         data = wine_data[wine_data$imported,]
+      }
+       else{
+         data = wine_data[!wine_data$imported,]
+      }
+    
+      return(data)
+    })
+    
+  output$wine_import <- renderPlot({
+        # draw the histogram with the specified number of bins
+      ggplot(wine_import_data(), aes_string(x=wine_import_data()$points, y=wine_import_data()$price)) + geom_point() + xlab("Rating") + ylab("Price") #Notice the difference between the ggplots
+    })
+  
+}
+
+shinyApp(ui, server)
+```
+
